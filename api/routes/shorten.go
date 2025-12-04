@@ -62,6 +62,36 @@ func ShortenURL(c *fiber.Ctx) error {
 
 	body.URL = helpers.EnforceHTTP(body.URL)
 
+	r := database.CreateClient(0)
+	defer r.Close()
+
+	val, err = r.Get(database.Ctx, body.URL).Result()
+
+	if err == nil {
+		_ = r2.Decr(database.Ctx, c.IP())
+
+		valRate, _ := r2.Get(database.Ctx, c.IP()).Result()
+		XRateRemaining, _ := strconv.Atoi(valRate)
+
+		ttl, _ := r2.TTL(database.Ctx, c.IP()).Result()
+		XRateLimitReset := ttl / time.Nanosecond / time.Minute
+
+		// return the link in the database
+		resp := response{
+			URL:             body.URL,
+			CustomShort:     os.Getenv("DOMAIN") + "/" + val,
+			Expiry:          body.Expiry,
+			XRateRemaining:  XRateRemaining,
+			XRateLimitReset: XRateLimitReset,
+		}
+
+		return c.Status(fiber.StatusOK).JSON(resp)
+	} else if err != redis.Nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Unable to connect to server",
+		})
+	}
+
 	var id string
 
 	if body.CustomShort == "" {
@@ -69,9 +99,6 @@ func ShortenURL(c *fiber.Ctx) error {
 	} else {
 		id = body.CustomShort
 	}
-
-	r := database.CreateClient(0)
-	defer r.Close()
 
 	val, _ = r.Get(database.Ctx, id).Result()
 	if val != "" {
@@ -85,6 +112,7 @@ func ShortenURL(c *fiber.Ctx) error {
 	}
 
 	err = r.Set(database.Ctx, id, body.URL, body.Expiry*time.Hour).Err()
+	err = r.Set(database.Ctx, body.URL, id, body.Expiry*time.Hour).Err()
 
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{

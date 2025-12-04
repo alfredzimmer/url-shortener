@@ -28,7 +28,7 @@ A simple, fast, and efficient URL shortener built with Go (Golang), Fiber, and R
 ### 1. Clone the repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/alfredzimmer/url-shortener
 cd url-shortener
 ```
 
@@ -107,4 +107,3 @@ Resets the rate limit for the requesting IP address.
   "ip": "..."
 }
 ```
-
